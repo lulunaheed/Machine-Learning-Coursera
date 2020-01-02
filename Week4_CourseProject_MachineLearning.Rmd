@@ -1,0 +1,69 @@
+---
+title: "MachineLearning_Week4_Project"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r code}
+setwd("~/Desktop")
+library(caret)
+library(randomForest)
+```
+
+# Download Datasets
+```{r data}
+training<-read.csv(file="pml-training.csv")
+testing<-read.csv(file="pml-testing.csv")
+```
+#Remove irrelevant variables for prediction
+```{r irrelevantVars}
+training<-training[,-(1:7)]
+testing<-testing[,-(1:7)]
+```
+#Remove variables with too many missing datapoints
+```{r removeTooManyNans}
+training[training==""]<- NA
+naFraction<-colSums(is.na(training))/(dim(training)[1])
+training<-training[,(naFraction<0.95)]
+```
+#Create a validation set
+```{r createValidation}
+inBuild<-createDataPartition(y=training$classe, p=0.7, list=FALSE)
+validation<-training[-inBuild,]
+buildData<-training[inBuild,]
+```
+#Use PCA to collapse number of variables to only the ones that are needed to differentiate between outcomes
+```{r PCA}
+preProc<-preProcess(buildData,method="pca",thresh=.95)
+trainPC<-predict(preProc,buildData)
+```
+#Use random forest method to create a model
+```{r randomForestModel}
+mod1<-randomForest(buildData$classe ~ .,data=trainPC,do.trace=F)
+print(mod1)
+importance(mod1)
+```
+#Predict on the validation data
+```{r predictValidation}
+validation[validation==""]<- NA
+naFractionTest<-colSums(is.na(validation))/(dim(validation)[1])
+validation<-validation[,(naFractionTest<0.95)]
+
+validPC<-predict(preProc,validation)
+confusionMatrix(as.factor(validation$classe), predict(mod1,validPC))
+```
+#Predict classe of testing dataset using model created from training dataset
+```{r predictTesting}
+testing[testing==""]<- NA
+naFractionFinal<-colSums(is.na(testing))/(dim(testing)[1])
+testing<-testing[,(naFractionFinal<0.95)]
+
+testPC <- predict(preProc,testing)
+testing$classe <- predict(mod1,testPC)
+```
+
+#Conclusion
+###The goal of this course project was to quantify how well participants completed a weight-lifting exercise.  Data was collected from accelerometers on the belt, forearm, arm, and dumbell from 6 parcipants.  Variables with too many missing values (over 95% missing) were not used to build the prediction model.  70% of the training dataset was used to build the model using random forest and the remaining observations (30%) were used for validation of the model.  PCA was used to reduce the predictor set into a smaller set of variables that would differentiate between outcomes.  When the random forest model was used on the validation set, there was 97.3% accuracy, sensitivity level between 92.4% - 99.1%, and specificity between 99%-99.8%.  The model was used to predict the performance of 20 different test cases.  Potential limitations of this study is that there was data from only 6 participants, with limited variety in background, meaning that it may not be a good predicting model for participants who are very different in terms of age and fitness levels.  
+
+
